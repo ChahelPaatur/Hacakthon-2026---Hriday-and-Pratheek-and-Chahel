@@ -1,0 +1,57 @@
+{
+  "name": "neurolang",
+  "version": "1.0.0",
+  "description": "A declarative programming language that compiles into neural networks",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./api": {
+      "types": "./dist/api.d.ts",
+      "import": "./dist/api.js"
+    },
+    "./template": {
+      "types": "./dist/template.d.ts",
+      "import": "./dist/template.js"
+    },
+    "./middleware": {
+      "types": "./dist/middleware.d.ts",
+      "import": "./dist/middleware.js"
+    }
+  },
+  "bin": {
+    "neurolang": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:exe": "node scripts/build-executables.mjs",
+    "build:bundle": "esbuild src/cli.ts --bundle --platform=node --target=node18 --outfile=dist-bin/neurolang-bundle.cjs --format=cjs --external:@tensorflow/tfjs",
+    "build:browser": "esbuild src/browser.ts --bundle --format=iife --global-name=NeuroLang --outfile=neurolang.bundle.js --platform=browser --external:@tensorflow/tfjs --external:node:fs --external:node:path",
+    "compile": "tsx src/cli.ts",
+    "test": "tsx --test tests/compiler.test.ts",
+    "test:iris": "tsx src/cli.ts examples/iris.nl",
+    "test:housing": "tsx src/cli.ts examples/housing.nl",
+    "test:enterprise": "tsx src/cli.ts examples/enterprise.nl",
+    "test:emit": "tsx src/cli.ts examples/iris.nl --emit-code",
+    "test:pytorch": "tsx src/cli.ts examples/iris.nl --target pytorch",
+    "typecheck": "tsc --noEmit",
+    "serve": "python3 -m http.server 4173"
+  },
+  "pkg": {
+    "assets": [],
+    "outputPath": "dist-bin"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.3",
+    "postject": "^1.0.0-alpha.6",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

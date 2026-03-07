@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-bin/
+*.tsbuildinfo
+**/out/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Generated browser bundle
+neurolang.bundle.js
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+.vscode/
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Rust build
+target/

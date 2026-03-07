@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NeuroLang | Program Neural Networks</title>
+  <meta
+    name="description"
+    content="NeuroLang turns a declarative DSL into neural architectures, training workflows, and visual model explainers."
+  >
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap"
+    rel="stylesheet"
+  >
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="site-shell">
+    <header class="topbar">
+      <div class="brand-mark">
+        <span class="brand-dot"></span>
+        <span>NeuroLang</span>
+      </div>
+      <nav class="topbar-nav">
+        <a href="#demo">Live Demo</a>
+        <a href="#how-it-works">How It Works</a>
+        <a href="#impact">Why It Wins</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Declarative AI Programming</p>
+          <h1>Write intent. Watch a neural network compile itself.</h1>
+          <p class="hero-text">
+            NeuroLang makes machine learning feel like programming instead of math.
+            Users describe the task, target, inputs, and learning behavior in a
+            tiny DSL. The system compiles that program into a model architecture,
+            simulates training, and explains the result visually.
+          </p>
+
+          <div class="hero-actions">
+            <a class="button button-primary" href="#demo">Launch Demo</a>
+            <a class="button button-secondary" href="#impact">See Showcase Story</a>
+          </div>
+
+          <div class="hero-points">
+            <div class="point-card">
+              <span class="point-kicker">Compiler Layer</span>
+              <strong>Language -> IR -> Network</strong>
+              <p>Every keyword drives architecture, optimization, and output shape.</p>
+            </div>
+            <div class="point-card">
+              <span class="point-kicker">Demo Layer</span>
+              <strong>Built for judges</strong>
+              <p>High-contrast visuals, animated metrics, and instant understanding.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-panel">
+          <div class="spotlight-card">
+            <div class="spotlight-header">
+              <span>What the audience sees</span>
+              <span class="status-pill">Black / White / Yellow</span>
+            </div>
+            <div class="spotlight-grid">
+              <div class="spotlight-tile">
+                <p>DSL Program</p>
+                <strong>Minimal syntax</strong>
+              </div>
+              <div class="spotlight-tile">
+                <p>Compiler Output</p>
+                <strong>Generated architecture</strong>
+              </div>
+              <div class="spotlight-tile">
+                <p>Training Story</p>
+                <strong>Animated metrics</strong>
+              </div>
+              <div class="spotlight-tile accent">
+                <p>Big Idea</p>
+                <strong>AI as code</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="demo-section" id="demo">
+        <div class="section-heading">
+          <p class="eyebrow">Live Compiler Demo</p>
+          <h2>A website showcase, not a static mockup</h2>
+          <p>
+            Type NeuroLang code, compile it into a model, and watch the dashboard
+            generate architecture, metrics, and prediction visuals.
+          </p>
+        </div>
+
+        <div class="demo-layout">
+          <div class="editor-card">
+            <div class="card-header">
+              <div>
+                <p class="card-label">Program Editor</p>
+                <h3>NeuroLang DSL</h3>
+              </div>
+              <div class="editor-actions">
+                <button class="chip" id="load-iris">Load Iris</button>
+                <button class="chip" id="load-housing">Load Housing</button>
+                <button class="chip" id="load-enterprise">Enterprise</button>
+                <button class="chip chip-accent" id="compile-button">Compile Program</button>
+              </div>
+            </div>
+
+            <div class="code-editor-shell">
+              <div class="editor-topbar">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <div class="code-editor">
+                <pre aria-hidden="true" id="dsl-highlight" class="syntax-block"></pre>
+                <textarea
+                  id="dsl-input"
+                  spellcheck="false"
+                  aria-label="NeuroLang program editor"
+                ></textarea>
+              </div>
+            </div>
+
+            <div class="status-row">
+              <div class="status-box">
+                <span class="status-title">Compiler Status</span>
+                <strong id="compiler-status">Waiting for program...</strong>
+              </div>
+              <div class="status-box">
+                <span class="status-title">Task Type</span>
+                <strong id="task-pill">Unspecified</strong>
+              </div>
+              <div class="status-box">
+                <span class="status-title">Primary Metric</span>
+                <strong id="metric-pill">None</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="results-stack">
+            <div class="panel-card">
+              <div class="card-header compact">
+                <div>
+                  <p class="card-label">Intermediate Representation</p>
+                  <h3>Parsed Program</h3>
+                </div>
+              </div>
+              <pre id="ir-output" class="console-panel"></pre>
+            </div>
+
+            <div class="panel-card">
+              <div class="card-header compact">
+                <div>
+                  <p class="card-label">Generated Architecture</p>
+                  <h3>Compiler Graph</h3>
+                </div>
+              </div>
+              <div id="architecture-flow" class="architecture-flow"></div>
+              <div id="architecture-summary" class="architecture-summary"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="code-output-section">
+          <div class="panel-card">
+            <div class="card-header compact">
+              <div>
+                <p class="card-label">Code Generation</p>
+                <h3>Generated Neural Network</h3>
+              </div>
+              <select id="code-target" class="chip">
+                <option value="tensorflow">TensorFlow.js</option>
+                <option value="pytorch">PyTorch</option>
+              </select>
+            </div>
+            <pre id="code-output" class="console-panel code-output-block"></pre>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <div class="panel-card wide">
+            <div class="card-header compact">
+              <div>
+                <p class="card-label">Training Engine</p>
+                <h3>Loss Curve</h3>
+              </div>
+              <div class="stat-badge" id="epochs-badge">Epochs: --</div>
+            </div>
+            <canvas id="loss-chart" width="640" height="260"></canvas>
+          </div>
+
+          <div class="panel-card wide">
+            <div class="card-header compact">
+              <div>
+                <p class="card-label">Prediction View</p>
+                <h3>Results Snapshot</h3>
+              </div>
+              <div class="stat-badge" id="score-badge">Score: --</div>
+            </div>
+            <canvas id="prediction-chart" width="640" height="260"></canvas>
+          </div>
+
+          <div class="metric-card">
+            <span class="metric-label">Compile Time</span>
+            <strong id="compile-time">0.00s</strong>
+            <p>Parser, IR builder, and architecture synthesis.</p>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Model Size</span>
+            <strong id="model-size">0 params</strong>
+            <p>Estimated parameter count from generated layers.</p>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Best Metric</span>
+            <strong id="best-metric">--</strong>
+            <p>Accuracy for classification, MSE for regression.</p>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Compiler Log</span>
+            <strong id="compiler-log-title">Ready</strong>
+            <p id="compiler-log-text">Load a sample or write your own DSL to start.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="showcase-strip" id="how-it-works">
+        <div class="section-heading">
+          <p class="eyebrow">How It Works</p>
+          <h2>The winning story in three steps</h2>
+        </div>
+
+        <div class="steps-grid">
+          <article class="step-card">
+            <span>01</span>
+            <h3>Describe the task</h3>
+            <p>
+              A tiny declarative language captures task type, target, inputs,
+              optimizer, epochs, and learning style in plain English-like syntax.
+            </p>
+          </article>
+          <article class="step-card">
+            <span>02</span>
+            <h3>Compile the model</h3>
+            <p>
+              The compiler maps intent to a concrete architecture, output layer,
+              and training configuration. The generated IR is visible to the user.
+            </p>
+          </article>
+          <article class="step-card">
+            <span>03</span>
+            <h3>Explain the result</h3>
+            <p>
+              The dashboard shows architecture, training behavior, and prediction
+              quality so non-ML users immediately understand what happened.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="impact-section" id="impact">
+        <div class="section-heading">
+          <p class="eyebrow">Why It Wins</p>
+          <h2>It looks premium and sells a strong product vision</h2>
+        </div>
+
+        <div class="impact-grid">
+          <div class="impact-card">
+            <h3>Judge-friendly framing</h3>
+            <p>
+              NeuroLang is presented as a neural compiler, not just another ML UI.
+              That makes the concept memorable and easy to explain in a short demo.
+            </p>
+          </div>
+          <div class="impact-card">
+            <h3>Website-first storytelling</h3>
+            <p>
+              The homepage doubles as the product demo. It feels like a launch-ready
+              startup website while still proving the technical core live.
+            </p>
+          </div>
+          <div class="impact-card">
+            <h3>Accessible technical depth</h3>
+            <p>
+              The parser, IR, and architecture visuals show real systems thinking
+              without drowning the audience in equations or framework details.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="neurolang.bundle.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

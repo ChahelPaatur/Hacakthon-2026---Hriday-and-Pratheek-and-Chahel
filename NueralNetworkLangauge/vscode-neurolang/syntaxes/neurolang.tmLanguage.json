@@ -1,0 +1,186 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "NeuroLang",
+  "scopeName": "source.neurolang",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#natural-language" },
+    { "include": "#required-keywords" },
+    { "include": "#architecture-keywords" },
+    { "include": "#training-keywords" },
+    { "include": "#preprocessing-keywords" },
+    { "include": "#data-keywords" },
+    { "include": "#advanced-keywords" },
+    { "include": "#transfer-keywords" },
+    { "include": "#export-keywords" },
+    { "include": "#values" },
+    { "include": "#strings" },
+    { "include": "#numbers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.hash.neurolang",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "natural-language": {
+      "patterns": [
+        {
+          "name": "keyword.control.natural.neurolang",
+          "match": "(?i)^\\s*(Predict|Classify|Estimate|Forecast|Detect)\\b"
+        },
+        {
+          "name": "keyword.operator.natural.neurolang",
+          "match": "(?i)\\b(from|with|using|and|for|into|as)\\b"
+        }
+      ]
+    },
+    "required-keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.required.neurolang",
+          "match": "(?i)^\\s*(task|predict|inputs|dataset|targets)\\b"
+        }
+      ]
+    },
+    "architecture-keywords": {
+      "patterns": [
+        {
+          "name": "keyword.other.architecture.neurolang",
+          "match": "(?i)^\\s*(architecture|loss|learn|optimizer|epochs|layers|activation|batch_norm|filters|kernel_size|pool_size|input_shape|sequence_length|embedding_dim|bidirectional|recurrent_dropout)\\b"
+        }
+      ]
+    },
+    "training-keywords": {
+      "patterns": [
+        {
+          "name": "keyword.other.training.neurolang",
+          "match": "(?i)^\\s*(batch_size|dropout|learning_rate|early_stop|lr_schedule|seed|tune|cross_validate|ensemble|compare)\\b"
+        }
+      ]
+    },
+    "preprocessing-keywords": {
+      "patterns": [
+        {
+          "name": "keyword.other.preprocessing.neurolang",
+          "match": "(?i)^\\s*(normalize|split|validate|export)\\b"
+        }
+      ]
+    },
+    "data-keywords": {
+      "patterns": [
+        {
+          "name": "keyword.other.data.neurolang",
+          "match": "(?i)^\\s*(show|describe|sample|augment|select|filter)\\b"
+        }
+      ]
+    },
+    "advanced-keywords": {
+      "patterns": [
+        {
+          "name": "keyword.other.advanced.neurolang",
+          "match": "(?i)^\\s*(cross_validate|ensemble|tune|compare)\\b"
+        }
+      ]
+    },
+    "transfer-keywords": {
+      "patterns": [
+        {
+          "name": "support.type.transfer.neurolang",
+          "match": "(?i)^\\s*(pretrained|freeze_layers)\\b"
+        }
+      ]
+    },
+    "export-keywords": {
+      "patterns": [
+        {
+          "name": "support.type.export.neurolang",
+          "match": "(?i)^\\s*(export_format)\\b"
+        }
+      ]
+    },
+    "values": {
+      "patterns": [
+        {
+          "name": "constant.language.task.neurolang",
+          "match": "(?i)\\b(classification|regression)\\b"
+        },
+        {
+          "name": "constant.language.architecture.neurolang",
+          "match": "(?i)\\b(mlp|cnn|rnn|lstm|gru|autoencoder|resnet|transformer)\\b"
+        },
+        {
+          "name": "constant.language.learn.neurolang",
+          "match": "(?i)\\b(linear|nonlinear|deep|auto)\\b"
+        },
+        {
+          "name": "constant.language.activation.neurolang",
+          "match": "(?i)\\b(relu|sigmoid|tanh|softmax|selu|elu|gelu|leaky_relu)\\b"
+        },
+        {
+          "name": "constant.language.optimizer.neurolang",
+          "match": "(?i)\\b(adam|sgd|rmsprop|adamw)\\b"
+        },
+        {
+          "name": "constant.language.loss.neurolang",
+          "match": "(?i)\\b(mse|mae|cross_entropy|binary_cross_entropy|huber)\\b"
+        },
+        {
+          "name": "constant.language.schedule.neurolang",
+          "match": "(?i)\\b(cosine|step|exponential)\\b"
+        },
+        {
+          "name": "constant.language.pretrained.neurolang",
+          "match": "(?i)\\b(mobilenet|resnet50|resnet101|vgg16|vgg19|efficientnet|inception|densenet)\\b"
+        },
+        {
+          "name": "constant.language.export.neurolang",
+          "match": "(?i)\\b(onnx|tflite|savedmodel|torchscript|coreml)\\b"
+        },
+        {
+          "name": "constant.language.dataset.neurolang",
+          "match": "(?i)\\b(iris|housing|titanic|wine|digits|sequences|timeseries)\\b"
+        },
+        {
+          "name": "constant.language.boolean.neurolang",
+          "match": "(?i)\\b(true|false)\\b"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.neurolang",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            { "name": "constant.character.escape.neurolang", "match": "\\\\." }
+          ]
+        },
+        {
+          "name": "string.quoted.single.neurolang",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            { "name": "constant.character.escape.neurolang", "match": "\\\\." }
+          ]
+        },
+        {
+          "name": "string.unquoted.filename.neurolang",
+          "match": "\\S+\\.csv\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.neurolang",
+          "match": "\\b\\d+(\\.\\d+)?\\b"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,152 @@
+{
+  "Classification Model": {
+    "prefix": "classify",
+    "body": [
+      "task classification",
+      "predict ${1:target}",
+      "inputs ${2:feature1 feature2}",
+      "dataset ${3:iris}",
+      "learn ${4|nonlinear,linear,deep,auto|}",
+      "epochs ${5:40}"
+    ],
+    "description": "Create a classification model"
+  },
+  "Regression Model": {
+    "prefix": "regress",
+    "body": [
+      "task regression",
+      "predict ${1:target}",
+      "inputs ${2:feature1 feature2}",
+      "dataset ${3:housing}",
+      "learn ${4|nonlinear,linear,deep,auto|}",
+      "epochs ${5:40}"
+    ],
+    "description": "Create a regression model"
+  },
+  "Natural Language - Classify": {
+    "prefix": "nlclassify",
+    "body": [
+      "Classify ${1:target} from ${2:dataset} with ${3:feature1} & ${4:feature2}"
+    ],
+    "description": "Natural language classification"
+  },
+  "Natural Language - Predict": {
+    "prefix": "nlpredict",
+    "body": [
+      "Predict ${1:target} from ${2:dataset} using ${3:feature1} and ${4:feature2}"
+    ],
+    "description": "Natural language prediction"
+  },
+  "CNN Model": {
+    "prefix": "cnn",
+    "body": [
+      "task classification",
+      "predict ${1:label}",
+      "inputs ${2:pixels}",
+      "dataset ${3:digits}",
+      "architecture cnn",
+      "filters ${4:32 64}",
+      "epochs ${5:20}"
+    ],
+    "description": "Create a CNN model"
+  },
+  "LSTM Model": {
+    "prefix": "lstm",
+    "body": [
+      "task classification",
+      "predict ${1:label}",
+      "inputs ${2:features}",
+      "dataset ${3:sequences}",
+      "architecture lstm",
+      "epochs ${4:30}"
+    ],
+    "description": "Create an LSTM model"
+  },
+  "ResNet Model": {
+    "prefix": "resnet",
+    "body": [
+      "task classification",
+      "predict ${1:label}",
+      "inputs ${2:features}",
+      "dataset ${3:digits}",
+      "architecture resnet",
+      "filters ${4:32 64 128}",
+      "epochs ${5:20}"
+    ],
+    "description": "Create a ResNet model with skip connections"
+  },
+  "Transformer Model": {
+    "prefix": "transformer",
+    "body": [
+      "task classification",
+      "predict ${1:label}",
+      "inputs ${2:features}",
+      "dataset ${3:sequences}",
+      "architecture transformer",
+      "epochs ${4:30}"
+    ],
+    "description": "Create a Transformer/attention model"
+  },
+  "Transfer Learning": {
+    "prefix": "transfer",
+    "body": [
+      "task classification",
+      "predict ${1:label}",
+      "inputs ${2:features}",
+      "dataset ${3:data.csv}",
+      "pretrained ${4|mobilenet,resnet50,resnet101,vgg16,efficientnet|}",
+      "freeze_layers ${5:15}",
+      "epochs ${6:10}"
+    ],
+    "description": "Transfer learning with pretrained model"
+  },
+  "Full Model with Training Config": {
+    "prefix": "fullmodel",
+    "body": [
+      "task ${1|classification,regression|}",
+      "predict ${2:target}",
+      "inputs ${3:features}",
+      "dataset ${4:data.csv}",
+      "learn ${5|deep,nonlinear,auto|}",
+      "optimizer ${6|adam,sgd,rmsprop,adamw|}",
+      "learning_rate ${7:0.001}",
+      "epochs ${8:40}",
+      "batch_size ${9:32}",
+      "dropout ${10:0.2}",
+      "normalize true",
+      "split ${11:0.8}",
+      "early_stop ${12:5}"
+    ],
+    "description": "Full model with all training options"
+  },
+  "Export Model": {
+    "prefix": "export",
+    "body": [
+      "export_format ${1|onnx,tflite,savedmodel,torchscript,coreml|}"
+    ],
+    "description": "Add model export format"
+  },
+  "Data Inspection": {
+    "prefix": "inspect",
+    "body": [
+      "show ${1:10}",
+      "describe true",
+      "sample ${2:5}"
+    ],
+    "description": "Add data inspection commands"
+  },
+  "Ensemble Training": {
+    "prefix": "ensemble",
+    "body": [
+      "ensemble ${1:5}"
+    ],
+    "description": "Train ensemble of models"
+  },
+  "Hyperparameter Tuning": {
+    "prefix": "tune",
+    "body": [
+      "tune true"
+    ],
+    "description": "Enable automatic hyperparameter tuning"
+  }
+}

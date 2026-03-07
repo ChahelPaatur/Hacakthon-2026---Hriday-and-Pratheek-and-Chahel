@@ -1,0 +1,160 @@
+{
+  "name": "neurolang",
+  "displayName": "NeuroLang",
+  "description": "Language support for NeuroLang — the declarative neural network programming language",
+  "version": "1.0.0",
+  "publisher": "ChahelPaatur",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Machine Learning",
+    "Snippets"
+  ],
+  "keywords": [
+    "neural network",
+    "machine learning",
+    "deep learning",
+    "dsl",
+    "neurolang",
+    "ai"
+  ],
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ChahelPaatur/Hacakthon-2026---Hriday-and-Pratheek-and-Chahel"
+  },
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:neurolang"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "neurolang",
+        "aliases": ["NeuroLang", "neurolang", "nl"],
+        "extensions": [".nl"],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "icon.png",
+          "dark": "icon.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "neurolang",
+        "scopeName": "source.neurolang",
+        "path": "./syntaxes/neurolang.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "neurolang",
+        "path": "./snippets/neurolang.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "neurolang.compile",
+        "title": "NeuroLang: Compile",
+        "icon": "$(play)"
+      },
+      {
+        "command": "neurolang.run",
+        "title": "NeuroLang: Compile & Train",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "neurolang.emitCode",
+        "title": "NeuroLang: Generate Code",
+        "icon": "$(code)"
+      },
+      {
+        "command": "neurolang.showIR",
+        "title": "NeuroLang: Show IR"
+      },
+      {
+        "command": "neurolang.benchmark",
+        "title": "NeuroLang: Run Benchmark"
+      },
+      {
+        "command": "neurolang.compare",
+        "title": "NeuroLang: Compare Architectures"
+      }
+    ],
+    "menus": {
+      "editor/title/run": [
+        {
+          "command": "neurolang.run",
+          "when": "resourceLangId == neurolang",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "neurolang.compile",
+          "when": "resourceLangId == neurolang",
+          "group": "neurolang@1"
+        },
+        {
+          "command": "neurolang.run",
+          "when": "resourceLangId == neurolang",
+          "group": "neurolang@2"
+        },
+        {
+          "command": "neurolang.emitCode",
+          "when": "resourceLangId == neurolang",
+          "group": "neurolang@3"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "neurolang.compile",
+        "key": "ctrl+shift+b",
+        "mac": "cmd+shift+b",
+        "when": "resourceLangId == neurolang"
+      },
+      {
+        "command": "neurolang.run",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r",
+        "when": "resourceLangId == neurolang"
+      }
+    ],
+    "configuration": {
+      "title": "NeuroLang",
+      "properties": {
+        "neurolang.codegenTarget": {
+          "type": "string",
+          "default": "tensorflow",
+          "enum": ["tensorflow", "pytorch", "keras", "jax", "summary"],
+          "description": "Default code generation target"
+        },
+        "neurolang.showTimings": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show compilation phase timings"
+        },
+        "neurolang.autoCompileOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically compile on file save"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./tsconfig.json",
+    "watch": "tsc -watch -p ./tsconfig.json",
+    "package": "npx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.0",
+    "typescript": "^5.7.0"
+  }
+}
