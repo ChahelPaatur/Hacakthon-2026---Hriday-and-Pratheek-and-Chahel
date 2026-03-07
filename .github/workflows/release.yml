@@ -10,7 +10,7 @@ permissions:
 
 defaults:
   run:
-    working-directory: "Nueral Network Langauge"
+    working-directory: "NueralNetworkLangauge"
 
 jobs:
   build:
@@ -164,7 +164,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.binary }}
-          path: "Nueral Network Langauge/dist-bin/${{ matrix.binary }}"
+          path: "NueralNetworkLangauge/dist-bin/${{ matrix.binary }}"
 
   release:
     needs: build
