@@ -28,6 +28,13 @@ Thumbs.db
 .env
 .env.local
 
+# Certificates and private keys — NEVER commit these
+*.p12
+*.cer
+*.key
+*.pem
+*.certSigningRequest
+
 # Logs
 *.log
 npm-debug.log*
