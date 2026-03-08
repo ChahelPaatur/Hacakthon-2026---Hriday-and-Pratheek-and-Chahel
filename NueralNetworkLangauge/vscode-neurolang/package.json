@@ -2,7 +2,7 @@
   "name": "neurolang",
   "displayName": "NeuroLang",
   "description": "Language support for NeuroLang — the declarative neural network programming language",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "ChahelPaatur",
   "engines": {
     "vscode": "^1.85.0"
