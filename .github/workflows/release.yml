@@ -47,13 +47,10 @@ jobs:
         run: npm ci
 
       - name: Build standalone binary with Bun
+        shell: bash
         run: |
           mkdir -p dist-bin
-          bun build src/cli.ts \
-            --compile \
-            --target=${{ matrix.target }} \
-            --outfile=dist-bin/${{ matrix.binary }} \
-            --external @tensorflow/tfjs
+          bun build src/cli.ts --compile --target=${{ matrix.target }} --outfile=dist-bin/${{ matrix.binary }} --external @tensorflow/tfjs
 
       - name: Make executable (Unix)
         if: runner.os != 'Windows'
@@ -173,34 +170,41 @@ jobs:
 
           echo "Submitting dist-bin/$PKG_NAME for notarization..."
 
-          # Submit without --wait so we control polling and error capture
+          set +e
           xcrun notarytool submit "dist-bin/$PKG_NAME" \
             --apple-id "$CLEAN_ID" \
             --team-id "$CLEAN_TEAM" \
             --password "$CLEAN_PASS" \
-            --output-format json 2>&1 | tee /tmp/nl_submit.json
+            --output-format json > /tmp/nl_submit.json 2>&1
+          SUBMIT_EXIT=$?
+          set -e
 
-          echo "=== Submit response ==="
+          echo "=== Submit response (exit $SUBMIT_EXIT) ==="
           cat /tmp/nl_submit.json
 
           SUB_ID=$(python3 -c "import json; print(json.load(open('/tmp/nl_submit.json')).get('id',''))" 2>/dev/null || echo "")
           if [ -z "$SUB_ID" ]; then
-            echo "No submission ID returned — submission failed"
+            echo "No submission ID — submission failed (exit $SUBMIT_EXIT)"
             exit 1
           fi
           echo "Submission ID: $SUB_ID"
 
-          # Poll up to 10 minutes
+          # Poll up to 10 minutes (set +e so notarytool errors don't kill the script)
           STATUS="In Progress"
           for i in $(seq 1 20); do
             sleep 30
+            set +e
             xcrun notarytool info "$SUB_ID" \
               --apple-id "$CLEAN_ID" \
               --team-id "$CLEAN_TEAM" \
               --password "$CLEAN_PASS" \
-              --output-format json 2>&1 | tee /tmp/nl_status.json
+              --output-format json > /tmp/nl_status.json 2>&1
+            POLL_EXIT=$?
+            set -e
+            echo "=== Poll $i (exit $POLL_EXIT) ==="
+            cat /tmp/nl_status.json
             STATUS=$(python3 -c "import json; print(json.load(open('/tmp/nl_status.json')).get('status','unknown'))" 2>/dev/null || echo "unknown")
-            echo "Poll $i — status: $STATUS"
+            echo "Status: $STATUS"
             if [ "$STATUS" = "Accepted" ] || [ "$STATUS" = "Invalid" ] || [ "$STATUS" = "Rejected" ]; then
               break
             fi
@@ -210,10 +214,12 @@ jobs:
 
           if [ "$STATUS" != "Accepted" ]; then
             echo "=== Apple notarization log ==="
+            set +e
             xcrun notarytool log "$SUB_ID" \
               --apple-id "$CLEAN_ID" \
               --team-id "$CLEAN_TEAM" \
-              --password "$CLEAN_PASS" || true
+              --password "$CLEAN_PASS"
+            set -e
             exit 1
           fi
 
