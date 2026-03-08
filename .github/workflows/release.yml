@@ -119,11 +119,7 @@ jobs:
             --password "$CLEAN_PASSWORD" \
             --output-format json > notarization-result.json 2>&1 || true
 
-          STATUS=$(python3 -c "
-import json
-try: print(json.load(open('notarization-result.json')).get('status','unknown'))
-except: print('parse-error')
-")
+          STATUS=$(python3 -c "import json; d=json.load(open('notarization-result.json')); print(d.get('status','unknown'))" 2>/dev/null || echo "parse-error")
           [ "$STATUS" = "Accepted" ] || { echo "Notarization failed: $STATUS"; exit 1; }
           echo "Binary notarized!"
           rm -f dist-bin/notarize.zip
@@ -156,11 +152,7 @@ except: print('parse-error')
             --password "$CLEAN_PASSWORD" \
             --output-format json > pkg-result.json 2>&1 || true
 
-          PKG_STATUS=$(python3 -c "
-import json
-try: print(json.load(open('pkg-result.json')).get('status','unknown'))
-except: print('parse-error')
-")
+          PKG_STATUS=$(python3 -c "import json; d=json.load(open('pkg-result.json')); print(d.get('status','unknown'))" 2>/dev/null || echo "parse-error")
           rm -f dist-bin/pkg-notarize.zip
 
           if [ "$PKG_STATUS" = "Accepted" ]; then
