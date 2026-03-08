@@ -41,6 +41,8 @@ function banner(): void {
 function usage(): void {
   banner();
   console.log(`${B}Usage:${X}  neurolang <file.nl> [options]`);
+  console.log(`        neurolang run <file.nl>          ${D}compile + train${X}`);
+  console.log(`        neurolang demo [iris|titanic|wine|housing|digits]  ${D}run a built-in example${X}`);
   console.log(`        neurolang --repl`);
   console.log(`        neurolang --infer <file.csv>`);
   console.log(`        neurolang --serve [port]`);
@@ -712,6 +714,55 @@ async function main(): Promise<void> {
   // Support "neurolang run <file>" as a natural subcommand
   if (args[0] === "run" && args.length >= 2 && !args[1]!.startsWith("-")) {
     args = ["--run", ...args.slice(1)];
+  }
+
+  // Support "neurolang demo [name]" — runs a built-in example from anywhere
+  if (args[0] === "demo") {
+    const DEMOS: Record<string, string> = {
+      iris: `task classification\npredict species\ninputs sepal_length sepal_width petal_length petal_width\ndataset iris\nlearn nonlinear\nepochs 30`,
+      titanic: `task classification\npredict survived\ninputs pclass sex age sibsp parch fare embarked\ndataset titanic\nloss binary_cross_entropy\nlearn nonlinear\nepochs 30`,
+      wine: `task classification\npredict cultivar\ninputs alcohol malic_acid ash alcalinity magnesium phenols flavanoids nonflavanoid_phenols proanthocyanins color_intensity hue od280 proline\ndataset wine\nlearn deep\nepochs 30`,
+      housing: `task regression\npredict price\ninputs size bedrooms bathrooms age zipcode\ndataset housing\nloss mse\nlearn nonlinear\nepochs 30`,
+      digits: `task classification\npredict digit\ninputs ${Array.from({ length: 64 }, (_, i) => `pixel_${i}`).join(" ")}\ndataset digits\nlearn deep\nepochs 20`,
+    };
+    const name = (args[1] ?? "iris").toLowerCase();
+    const prog = DEMOS[name];
+    if (!prog) {
+      console.error(`${R}Unknown demo: ${name}${X}`);
+      console.log(`${D}Available demos: ${Object.keys(DEMOS).join(", ")}${X}`);
+      process.exit(1);
+    }
+    banner();
+    console.log(`${C}Running built-in demo: ${Y}${name}${X}\n`);
+    const result = compile(prog, { target: "tensorflow", filename: `${name}.nl` });
+    console.log(emitSummary(result.ir));
+    console.log(`${D}Compiled in ${result.timings.total.toFixed(1)}ms${X}\n`);
+    console.log(`${B}${Y}── Executing Model ──${X}\n`);
+    try {
+      const trainResult = await execute(result.ir, {
+        onEpochEnd: (epoch, loss) => {
+          if ((epoch + 1) % Math.max(1, Math.floor(result.ir.training.epochs / 5)) === 0 || epoch === 0) {
+            process.stdout.write(`  ${D}Epoch ${String(epoch + 1).padStart(4)}/${result.ir.training.epochs}: loss=${loss.toFixed(4)}${X}\n`);
+          }
+        },
+      });
+      console.log(`\n${G}${B}Training Complete${X}`);
+      console.log(`  ${trainResult.metric.name}:  ${G}${trainResult.metric.value.toFixed(4)}${X}`);
+      console.log(`  Loss:         ${trainResult.finalLoss.toFixed(4)}`);
+      if (trainResult.lossHistory.length > 1) {
+        console.log();
+        console.log(renderLossCurve(trainResult.lossHistory));
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("TensorFlow")) {
+        console.log(`${R}TensorFlow.js is not installed.${X}`);
+        console.log(`${D}Install it to train models:  ${Y}npm install @tensorflow/tfjs${X}`);
+      } else {
+        console.error(`${R}${msg}${X}`);
+      }
+    }
+    return;
   }
 
   const flags = parseArgs(args);
