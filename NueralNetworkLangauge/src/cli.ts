@@ -702,11 +702,16 @@ function renderLossCurve(losses: number[]): string {
 }
 
 async function main(): Promise<void> {
-  const args = process.argv.slice(2);
+  let args = process.argv.slice(2);
 
   if (args.length === 0) {
     usage();
     process.exit(0);
+  }
+
+  // Support "neurolang run <file>" as a natural subcommand
+  if (args[0] === "run" && args.length >= 2 && !args[1]!.startsWith("-")) {
+    args = ["--run", ...args.slice(1)];
   }
 
   const flags = parseArgs(args);
@@ -971,6 +976,34 @@ async function main(): Promise<void> {
     }
 
     if (flags.run) {
+      // Check dataset exists before attempting training
+      const ds = result.ir.dataset;
+      const BUILTIN = new Set(["iris", "housing", "titanic", "wine", "digits"]);
+      if (ds && !BUILTIN.has(ds.toLowerCase().replace(".csv", ""))) {
+        const dsPath = path.resolve(path.dirname(filePath), ds);
+        const dsPathCwd = path.resolve(ds);
+        if (!fs.existsSync(dsPath) && !fs.existsSync(dsPathCwd)) {
+          console.log(`${R}Dataset not found: ${ds}${X}`);
+          console.log(`${D}Place the CSV file in the same directory as your .nl file, or use a built-in dataset:${X}`);
+          console.log(`${D}  Built-in: iris, titanic, wine, digits, housing${X}`);
+          console.log(`${D}  Or run without --run to just compile and see the architecture.${X}`);
+          process.exit(1);
+        }
+      }
+
+      // Check TensorFlow.js is available
+      try {
+        await import("@tensorflow/tfjs");
+      } catch {
+        console.log(`${R}TensorFlow.js is not installed.${X}`);
+        console.log(`${D}Training requires TensorFlow.js. Install it in your project:${X}`);
+        console.log(`${Y}  npm install @tensorflow/tfjs${X}`);
+        console.log();
+        console.log(`${D}To just compile and see the architecture, run without --run:${X}`);
+        console.log(`${Y}  neurolang ${filePath}${X}`);
+        process.exit(1);
+      }
+
       console.log(`${B}${Y}── Executing Model ──${X}`);
       console.log();
 
