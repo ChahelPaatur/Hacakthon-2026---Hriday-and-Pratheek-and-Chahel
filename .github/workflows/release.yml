@@ -59,7 +59,7 @@ jobs:
         if: runner.os != 'Windows'
         run: chmod +x dist-bin/${{ matrix.binary }}
 
-      - name: Sign and notarize macOS binary
+      - name: Sign, notarize and staple macOS DMG
         if: runner.os == 'macOS' && env.APPLE_CERTIFICATE_BASE64 != ''
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
@@ -70,13 +70,11 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           BINARY: ${{ matrix.binary }}
         run: |
-          # Strip any whitespace from secrets (handles leading/trailing spaces)
           CLEAN_ID=$(echo "$APPLE_ID" | xargs)
           CLEAN_TEAM=$(echo "$APPLE_TEAM_ID" | xargs)
           CLEAN_PASS=$(echo "$APPLE_APP_SPECIFIC_PASSWORD" | xargs)
           CLEAN_IDENTITY=$(echo "$APPLE_SIGNING_IDENTITY" | xargs)
 
-          # Import certificate into a temporary keychain
           TMP_DIR=$(mktemp -d)
           KEYCHAIN_PATH="$TMP_DIR/build.keychain-db"
           CERT_PATH="$TMP_DIR/cert.p12"
@@ -93,8 +91,7 @@ jobs:
             -S apple-tool:,apple:,codesign: \
             -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-          # Write entitlements — Bun/JavaScriptCore requires JIT permission
-          cat > "$TMP_DIR/entitlements.plist" << 'EOF'
+          cat > "$TMP_DIR/entitlements.plist" << 'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -107,9 +104,8 @@ jobs:
             <true/>
           </dict>
           </plist>
-          EOF
+          PLIST
 
-          # Sign with entitlements
           /usr/bin/codesign \
             --sign "$CLEAN_IDENTITY" \
             --entitlements "$TMP_DIR/entitlements.plist" \
@@ -117,67 +113,62 @@ jobs:
             --timestamp \
             --force \
             "dist-bin/$BINARY"
-
           codesign --verify --deep --strict "dist-bin/$BINARY"
-          echo "Binary signed successfully"
-
-          # We do NOT submit the raw binary to notarytool.
-          # Bun embeds JavaScriptCore (already signed by Oven); re-signing with --force
-          # invalidates those inner signatures and causes Apple to cancel the submission.
-          # Instead we build a .pkg installer, notarize that, and staple the ticket —
-          # users get zero Gatekeeper warnings when they install via the .pkg.
+          echo "Binary signed OK"
 
           if [ -z "$CLEAN_ID" ]; then
             echo "No APPLE_ID set — skipping notarization"
             exit 0
           fi
 
-          # Build .pkg installer and staple the notarization ticket to it
-          PKG_ROOT=$(mktemp -d)
-          PKG_SCRIPTS=$(mktemp -d)
-          mkdir -p "$PKG_ROOT/usr/local/bin"
-          cp "dist-bin/$BINARY" "$PKG_ROOT/usr/local/bin/neurolang"
-          chmod +x "$PKG_ROOT/usr/local/bin/neurolang"
-          printf '#!/bin/bash\nchmod +x /usr/local/bin/neurolang\n' > "$PKG_SCRIPTS/postinstall"
-          chmod +x "$PKG_SCRIPTS/postinstall"
+          STAGE="$TMP_DIR/dmg-stage"
+          mkdir -p "$STAGE"
+          cp "dist-bin/$BINARY" "$STAGE/neurolang"
+          chmod +x "$STAGE/neurolang"
 
-          PKG_NAME="neurolang-installer-${BINARY#neurolang-}.pkg"
+          cat > "$STAGE/install.sh" << 'INSTALL'
+          #!/bin/bash
+          DIR="$(cd "$(dirname "$0")" && pwd)"
+          sudo cp "$DIR/neurolang" /usr/local/bin/neurolang
+          sudo chmod +x /usr/local/bin/neurolang
+          echo "NeuroLang installed. Run: neurolang --help"
+          INSTALL
+          chmod +x "$STAGE/install.sh"
 
-          pkgbuild \
-            --root "$PKG_ROOT" \
-            --scripts "$PKG_SCRIPTS" \
-            --identifier "com.neurolang.compiler" \
-            --version "${GITHUB_REF_NAME:-1.0.0}" \
-            --install-location "/" \
-            "dist-bin/$PKG_NAME"
+          DMG_NAME="${BINARY}.dmg"
+          hdiutil create \
+            -volname "NeuroLang" \
+            -srcfolder "$STAGE" \
+            -ov -format UDZO \
+            "dist-bin/$DMG_NAME"
 
-          # Sign the pkg, then notarize and staple
-          productsign \
+          /usr/bin/codesign \
             --sign "$CLEAN_IDENTITY" \
-            "dist-bin/$PKG_NAME" \
-            "dist-bin/${PKG_NAME%.pkg}-signed.pkg" 2>/dev/null \
-            && mv "dist-bin/${PKG_NAME%.pkg}-signed.pkg" "dist-bin/$PKG_NAME" || true
+            --timestamp \
+            "dist-bin/$DMG_NAME"
+          echo "DMG signed OK"
 
-          zip -j "dist-bin/pkg-notarize.zip" "dist-bin/$PKG_NAME"
-          xcrun notarytool submit "dist-bin/pkg-notarize.zip" \
+          xcrun notarytool submit "dist-bin/$DMG_NAME" \
             --wait \
             --apple-id "$CLEAN_ID" \
             --team-id "$CLEAN_TEAM" \
             --password "$CLEAN_PASS" \
-            --output-format json > pkg-result.json 2>&1 || true
+            --output-format json > notarize-dmg.json 2>&1 || true
 
-          cat pkg-result.json
-          PKG_STATUS=$(python3 -c "import json; print(json.load(open('pkg-result.json')).get('status','unknown'))" 2>/dev/null || echo "parse-error")
-          rm -f dist-bin/pkg-notarize.zip
+          echo "--- notarytool output ---"
+          cat notarize-dmg.json
+          echo "-------------------------"
 
-          if [ "$PKG_STATUS" = "Accepted" ]; then
-            xcrun stapler staple "dist-bin/$PKG_NAME"
-            echo ".pkg notarized and stapled — zero Gatekeeper warnings on install"
+          DMG_STATUS=$(python3 -c "import json; print(json.load(open('notarize-dmg.json')).get('status','unknown'))" 2>/dev/null || echo "parse-error")
+
+          if [ "$DMG_STATUS" = "Accepted" ]; then
+            xcrun stapler staple "dist-bin/$DMG_NAME"
+            echo "SUCCESS: DMG notarized and stapled — zero Gatekeeper warnings"
           else
-            echo "pkg notarization status: $PKG_STATUS"
+            echo "Notarization status: $DMG_STATUS — binary still released (signed)"
           fi
 
-      - name: Ad-hoc sign macOS binary (fallback when no cert)
+      - name: Ad-hoc sign (fallback — no certificate secrets)
         if: runner.os == 'macOS' && env.APPLE_CERTIFICATE_BASE64 == ''
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
@@ -192,12 +183,12 @@ jobs:
           name: ${{ matrix.binary }}
           path: "NueralNetworkLangauge/dist-bin/${{ matrix.binary }}"
 
-      - name: Upload pkg installer
+      - name: Upload DMG
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.binary }}-pkg
-          path: "NueralNetworkLangauge/dist-bin/*.pkg"
+          name: ${{ matrix.binary }}-dmg
+          path: "NueralNetworkLangauge/dist-bin/*.dmg"
         continue-on-error: true
 
   release:
