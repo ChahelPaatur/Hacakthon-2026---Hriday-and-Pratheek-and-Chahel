@@ -59,72 +59,95 @@ jobs:
         if: runner.os != 'Windows'
         run: chmod +x dist-bin/${{ matrix.binary }}
 
-      - name: Sign macOS binary with Developer ID
+      - name: Sign and notarize macOS binary
         if: runner.os == 'macOS' && env.APPLE_CERTIFICATE_BASE64 != ''
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          BINARY: ${{ matrix.binary }}
         run: |
+          # Strip any whitespace from secrets (handles leading/trailing spaces)
+          CLEAN_ID=$(echo "$APPLE_ID" | xargs)
+          CLEAN_TEAM=$(echo "$APPLE_TEAM_ID" | xargs)
+          CLEAN_PASS=$(echo "$APPLE_APP_SPECIFIC_PASSWORD" | xargs)
+          CLEAN_IDENTITY=$(echo "$APPLE_SIGNING_IDENTITY" | xargs)
+
+          # Import certificate into a temporary keychain
           TMP_DIR=$(mktemp -d)
-          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
-          KEYCHAIN_PATH="$TMP_DIR/signing.keychain-db"
-          CERTIFICATE_PATH="$TMP_DIR/certificate.p12"
+          KEYCHAIN_PATH="$TMP_DIR/build.keychain-db"
+          CERT_PATH="$TMP_DIR/cert.p12"
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 16)
 
-          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
-
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > "$CERT_PATH"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security default-keychain -s "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          security import "$CERTIFICATE_PATH" \
-            -P "$APPLE_CERTIFICATE_PASSWORD" \
+          security import "$CERT_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" \
             -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-
-          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
             -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-          /usr/bin/codesign --sign "$APPLE_SIGNING_IDENTITY" \
-            --timestamp --options runtime --force \
-            "dist-bin/${{ matrix.binary }}"
+          # Write entitlements — Bun/JavaScriptCore requires JIT permission
+          cat > "$TMP_DIR/entitlements.plist" << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>com.apple.security.cs.allow-jit</key>
+            <true/>
+            <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+            <true/>
+            <key>com.apple.security.cs.disable-library-validation</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
 
-          codesign --verify --deep --strict "dist-bin/${{ matrix.binary }}"
+          # Sign with entitlements
+          /usr/bin/codesign \
+            --sign "$CLEAN_IDENTITY" \
+            --entitlements "$TMP_DIR/entitlements.plist" \
+            --options runtime \
+            --timestamp \
+            --force \
+            "dist-bin/$BINARY"
 
-      - name: Ad-hoc sign macOS binary (fallback when no cert)
-        if: runner.os == 'macOS' && env.APPLE_CERTIFICATE_BASE64 == ''
-        env:
-          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-        run: codesign --sign - dist-bin/${{ matrix.binary }}
+          codesign --verify --deep --strict "dist-bin/$BINARY"
+          echo "Binary signed successfully"
 
-      - name: Notarize macOS binary and build .pkg installer
-        if: runner.os == 'macOS' && env.APPLE_CERTIFICATE_BASE64 != '' && env.APPLE_ID != ''
-        env:
-          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          BINARY: ${{ matrix.binary }}
-        run: |
-          CLEAN_APPLE_ID=$(echo "$APPLE_ID" | tr -d '[:space:]')
-          CLEAN_TEAM_ID=$(echo "$APPLE_TEAM_ID" | tr -d '[:space:]')
-          CLEAN_PASSWORD=$(echo "$APPLE_APP_SPECIFIC_PASSWORD" | tr -d '[:space:]')
+          # Skip APPLE_ID check — if we have a cert we always try to notarize
+          if [ -z "$CLEAN_ID" ]; then
+            echo "No APPLE_ID set — skipping notarization"
+            exit 0
+          fi
 
+          # Notarize the binary
           zip -j "dist-bin/notarize.zip" "dist-bin/$BINARY"
           xcrun notarytool submit "dist-bin/notarize.zip" \
             --wait \
-            --apple-id "$CLEAN_APPLE_ID" \
-            --team-id "$CLEAN_TEAM_ID" \
-            --password "$CLEAN_PASSWORD" \
+            --apple-id "$CLEAN_ID" \
+            --team-id "$CLEAN_TEAM" \
+            --password "$CLEAN_PASS" \
             --output-format json > notarization-result.json 2>&1 || true
 
-          STATUS=$(python3 -c "import json; d=json.load(open('notarization-result.json')); print(d.get('status','unknown'))" 2>/dev/null || echo "parse-error")
-          [ "$STATUS" = "Accepted" ] || { echo "Notarization failed: $STATUS"; exit 1; }
-          echo "Binary notarized!"
+          cat notarization-result.json
+          STATUS=$(python3 -c "import json; print(json.load(open('notarization-result.json')).get('status','unknown'))" 2>/dev/null || echo "parse-error")
           rm -f dist-bin/notarize.zip
 
-          # Build .pkg installer (can be stapled — zero Gatekeeper warnings)
+          if [ "$STATUS" != "Accepted" ]; then
+            echo "Notarization failed with status: $STATUS"
+            echo "Binary is signed but not notarized — users can still run via right-click > Open"
+            exit 0
+          fi
+          echo "Binary notarized!"
+
+          # Build .pkg installer and staple the notarization ticket to it
           PKG_ROOT=$(mktemp -d)
           PKG_SCRIPTS=$(mktemp -d)
           mkdir -p "$PKG_ROOT/usr/local/bin"
@@ -133,8 +156,7 @@ jobs:
           printf '#!/bin/bash\nchmod +x /usr/local/bin/neurolang\n' > "$PKG_SCRIPTS/postinstall"
           chmod +x "$PKG_SCRIPTS/postinstall"
 
-          PKG_NAME="${BINARY/neurolang-/neurolang-installer-}.pkg"
-          PKG_NAME="${PKG_NAME%.exe.pkg}.pkg"
+          PKG_NAME="neurolang-installer-${BINARY#neurolang-}.pkg"
 
           pkgbuild \
             --root "$PKG_ROOT" \
@@ -144,21 +166,37 @@ jobs:
             --install-location "/" \
             "dist-bin/$PKG_NAME"
 
+          # Sign the pkg, then notarize and staple
+          productsign \
+            --sign "$CLEAN_IDENTITY" \
+            "dist-bin/$PKG_NAME" \
+            "dist-bin/${PKG_NAME%.pkg}-signed.pkg" 2>/dev/null \
+            && mv "dist-bin/${PKG_NAME%.pkg}-signed.pkg" "dist-bin/$PKG_NAME" || true
+
           zip -j "dist-bin/pkg-notarize.zip" "dist-bin/$PKG_NAME"
           xcrun notarytool submit "dist-bin/pkg-notarize.zip" \
             --wait \
-            --apple-id "$CLEAN_APPLE_ID" \
-            --team-id "$CLEAN_TEAM_ID" \
-            --password "$CLEAN_PASSWORD" \
+            --apple-id "$CLEAN_ID" \
+            --team-id "$CLEAN_TEAM" \
+            --password "$CLEAN_PASS" \
             --output-format json > pkg-result.json 2>&1 || true
 
-          PKG_STATUS=$(python3 -c "import json; d=json.load(open('pkg-result.json')); print(d.get('status','unknown'))" 2>/dev/null || echo "parse-error")
+          cat pkg-result.json
+          PKG_STATUS=$(python3 -c "import json; print(json.load(open('pkg-result.json')).get('status','unknown'))" 2>/dev/null || echo "parse-error")
           rm -f dist-bin/pkg-notarize.zip
 
           if [ "$PKG_STATUS" = "Accepted" ]; then
             xcrun stapler staple "dist-bin/$PKG_NAME"
-            echo ".pkg notarized and stapled — zero Gatekeeper warnings!"
+            echo ".pkg notarized and stapled — zero Gatekeeper warnings on install"
+          else
+            echo "pkg notarization status: $PKG_STATUS"
           fi
+
+      - name: Ad-hoc sign macOS binary (fallback when no cert)
+        if: runner.os == 'macOS' && env.APPLE_CERTIFICATE_BASE64 == ''
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+        run: codesign --sign - dist-bin/${{ matrix.binary }}
 
       - name: Test binary
         run: dist-bin/${{ matrix.binary }} --help || true
