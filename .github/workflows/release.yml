@@ -59,7 +59,8 @@ jobs:
         if: runner.os != 'Windows'
         run: chmod +x dist-bin/${{ matrix.binary }}
 
-      - name: Sign, notarize and staple macOS .pkg
+      # ── Step 1: sign binary + build signed .pkg ──────────────────────────
+      - name: Sign binary and build signed .pkg
         if: runner.os == 'macOS' && env.APPLE_APP_CERT_BASE64 != ''
         env:
           APPLE_APP_CERT_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
@@ -67,48 +68,40 @@ jobs:
           APPLE_INSTALLER_CERT_BASE64: ${{ secrets.APPLE_INSTALLER_CERTIFICATE_BASE64 }}
           APPLE_INSTALLER_CERT_PASSWORD: ${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           BINARY: ${{ matrix.binary }}
         run: |
-          CLEAN_ID=$(echo "$APPLE_ID" | xargs)
-          CLEAN_TEAM=$(echo "$APPLE_TEAM_ID" | xargs)
-          CLEAN_PASS=$(echo "$APPLE_APP_SPECIFIC_PASSWORD" | xargs)
           CLEAN_APP_IDENTITY=$(echo "$APPLE_SIGNING_IDENTITY" | xargs)
 
           TMP_DIR=$(mktemp -d)
+          echo "$TMP_DIR" > /tmp/nl_tmpdir
+
           KEYCHAIN_PATH="$TMP_DIR/build.keychain-db"
           KEYCHAIN_PASSWORD=$(openssl rand -hex 16)
+          echo "$KEYCHAIN_PASSWORD" > /tmp/nl_kp
+          echo "$KEYCHAIN_PATH"    > /tmp/nl_kc
 
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security default-keychain -s "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-          # Import Developer ID Application cert (for signing the binary)
-          APP_CERT_PATH="$TMP_DIR/app-cert.p12"
-          echo "$APPLE_APP_CERT_BASE64" | base64 --decode > "$APP_CERT_PATH"
-          security import "$APP_CERT_PATH" -P "$APPLE_APP_CERT_PASSWORD" \
+          echo "$APPLE_APP_CERT_BASE64" | base64 --decode > "$TMP_DIR/app.p12"
+          security import "$TMP_DIR/app.p12" -P "$APPLE_APP_CERT_PASSWORD" \
             -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
 
-          # Import Developer ID Installer cert (for signing the .pkg)
-          INST_CERT_PATH="$TMP_DIR/installer-cert.p12"
-          echo "$APPLE_INSTALLER_CERT_BASE64" | base64 --decode > "$INST_CERT_PATH"
-          security import "$INST_CERT_PATH" -P "$APPLE_INSTALLER_CERT_PASSWORD" \
+          echo "$APPLE_INSTALLER_CERT_BASE64" | base64 --decode > "$TMP_DIR/installer.p12"
+          security import "$TMP_DIR/installer.p12" -P "$APPLE_INSTALLER_CERT_PASSWORD" \
             -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
 
           security set-key-partition-list \
             -S apple-tool:,apple:,codesign: \
             -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-          # Find the installer signing identity from the keychain
           INSTALLER_IDENTITY=$(security find-identity -v -p basic "$KEYCHAIN_PATH" \
             | grep "Developer ID Installer" | head -1 | sed 's/.*"\(.*\)"/\1/')
           echo "App identity:       $CLEAN_APP_IDENTITY"
           echo "Installer identity: $INSTALLER_IDENTITY"
 
-          # Entitlements for Bun (JavaScriptCore requires JIT)
           cat > "$TMP_DIR/entitlements.plist" << 'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -124,7 +117,6 @@ jobs:
           </plist>
           PLIST
 
-          # Sign the binary with Developer ID Application
           /usr/bin/codesign \
             --sign "$CLEAN_APP_IDENTITY" \
             --entitlements "$TMP_DIR/entitlements.plist" \
@@ -135,22 +127,16 @@ jobs:
           codesign --verify --deep --strict "dist-bin/$BINARY"
           echo "Binary signed OK"
 
-          if [ -z "$CLEAN_ID" ]; then
-            echo "No APPLE_ID — skipping notarization"
-            exit 0
-          fi
-
-          # Build the .pkg installer
           PKG_ROOT=$(mktemp -d)
           PKG_SCRIPTS=$(mktemp -d)
           mkdir -p "$PKG_ROOT/usr/local/bin"
           cp "dist-bin/$BINARY" "$PKG_ROOT/usr/local/bin/neurolang"
           chmod +x "$PKG_ROOT/usr/local/bin/neurolang"
-
           printf '#!/bin/bash\nchmod +x /usr/local/bin/neurolang\n' > "$PKG_SCRIPTS/postinstall"
           chmod +x "$PKG_SCRIPTS/postinstall"
 
           PKG_NAME="neurolang-installer-${BINARY#neurolang-}.pkg"
+          echo "$PKG_NAME" > /tmp/nl_pkgname
 
           pkgbuild \
             --root "$PKG_ROOT" \
@@ -160,7 +146,6 @@ jobs:
             --install-location "/" \
             "$TMP_DIR/unsigned.pkg"
 
-          # Sign the .pkg with Developer ID Installer
           productsign \
             --sign "$INSTALLER_IDENTITY" \
             --keychain "$KEYCHAIN_PATH" \
@@ -168,35 +153,72 @@ jobs:
             "dist-bin/$PKG_NAME"
 
           pkgutil --check-signature "dist-bin/$PKG_NAME"
-          echo ".pkg signed OK"
+          echo ".pkg signed and verified OK"
 
-          # Notarize the signed .pkg
+      # ── Step 2: notarize (non-fatal — Apple log shown on failure) ─────────
+      - name: Notarize and staple .pkg
+        if: runner.os == 'macOS' && env.APPLE_APP_CERT_BASE64 != '' && env.APPLE_ID != ''
+        continue-on-error: true
+        env:
+          APPLE_APP_CERT_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          BINARY: ${{ matrix.binary }}
+        run: |
+          CLEAN_ID=$(echo "$APPLE_ID" | xargs)
+          CLEAN_TEAM=$(echo "$APPLE_TEAM_ID" | xargs)
+          CLEAN_PASS=$(echo "$APPLE_APP_SPECIFIC_PASSWORD" | xargs)
+          PKG_NAME=$(cat /tmp/nl_pkgname)
+
+          echo "Submitting dist-bin/$PKG_NAME for notarization..."
+
+          # Submit without --wait so we control polling and error capture
           xcrun notarytool submit "dist-bin/$PKG_NAME" \
-            --wait \
             --apple-id "$CLEAN_ID" \
             --team-id "$CLEAN_TEAM" \
             --password "$CLEAN_PASS" \
-            --output-format json > notarize-pkg.json 2>&1 || true
+            --output-format json 2>&1 | tee /tmp/nl_submit.json
 
-          echo "--- notarytool output ---"
-          cat notarize-pkg.json
-          echo "-------------------------"
+          echo "=== Submit response ==="
+          cat /tmp/nl_submit.json
 
-          PKG_STATUS=$(python3 -c "import json; print(json.load(open('notarize-pkg.json')).get('status','unknown'))" 2>/dev/null || echo "parse-error")
-
-          if [ "$PKG_STATUS" = "Accepted" ]; then
-            xcrun stapler staple "dist-bin/$PKG_NAME"
-            echo "SUCCESS: .pkg notarized and stapled — zero Gatekeeper warnings"
-          else
-            echo "Notarization status: $PKG_STATUS"
-            SUB_ID=$(python3 -c "import json; print(json.load(open('notarize-pkg.json')).get('id',''))" 2>/dev/null || echo "")
-            if [ -n "$SUB_ID" ]; then
-              xcrun notarytool log "$SUB_ID" \
-                --apple-id "$CLEAN_ID" \
-                --team-id "$CLEAN_TEAM" \
-                --password "$CLEAN_PASS" || true
-            fi
+          SUB_ID=$(python3 -c "import json; print(json.load(open('/tmp/nl_submit.json')).get('id',''))" 2>/dev/null || echo "")
+          if [ -z "$SUB_ID" ]; then
+            echo "No submission ID returned — submission failed"
+            exit 1
           fi
+          echo "Submission ID: $SUB_ID"
+
+          # Poll up to 10 minutes
+          STATUS="In Progress"
+          for i in $(seq 1 20); do
+            sleep 30
+            xcrun notarytool info "$SUB_ID" \
+              --apple-id "$CLEAN_ID" \
+              --team-id "$CLEAN_TEAM" \
+              --password "$CLEAN_PASS" \
+              --output-format json 2>&1 | tee /tmp/nl_status.json
+            STATUS=$(python3 -c "import json; print(json.load(open('/tmp/nl_status.json')).get('status','unknown'))" 2>/dev/null || echo "unknown")
+            echo "Poll $i — status: $STATUS"
+            if [ "$STATUS" = "Accepted" ] || [ "$STATUS" = "Invalid" ] || [ "$STATUS" = "Rejected" ]; then
+              break
+            fi
+          done
+
+          echo "Final status: $STATUS"
+
+          if [ "$STATUS" != "Accepted" ]; then
+            echo "=== Apple notarization log ==="
+            xcrun notarytool log "$SUB_ID" \
+              --apple-id "$CLEAN_ID" \
+              --team-id "$CLEAN_TEAM" \
+              --password "$CLEAN_PASS" || true
+            exit 1
+          fi
+
+          xcrun stapler staple "dist-bin/$PKG_NAME"
+          echo "SUCCESS: .pkg notarized and stapled — zero Gatekeeper warnings"
 
       - name: Ad-hoc sign (fallback — no certificate secrets)
         if: runner.os == 'macOS' && env.APPLE_APP_CERT_BASE64 == ''
