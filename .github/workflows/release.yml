@@ -121,31 +121,16 @@ jobs:
           codesign --verify --deep --strict "dist-bin/$BINARY"
           echo "Binary signed successfully"
 
-          # Skip APPLE_ID check — if we have a cert we always try to notarize
+          # We do NOT submit the raw binary to notarytool.
+          # Bun embeds JavaScriptCore (already signed by Oven); re-signing with --force
+          # invalidates those inner signatures and causes Apple to cancel the submission.
+          # Instead we build a .pkg installer, notarize that, and staple the ticket —
+          # users get zero Gatekeeper warnings when they install via the .pkg.
+
           if [ -z "$CLEAN_ID" ]; then
             echo "No APPLE_ID set — skipping notarization"
             exit 0
           fi
-
-          # Notarize the binary
-          zip -j "dist-bin/notarize.zip" "dist-bin/$BINARY"
-          xcrun notarytool submit "dist-bin/notarize.zip" \
-            --wait \
-            --apple-id "$CLEAN_ID" \
-            --team-id "$CLEAN_TEAM" \
-            --password "$CLEAN_PASS" \
-            --output-format json > notarization-result.json 2>&1 || true
-
-          cat notarization-result.json
-          STATUS=$(python3 -c "import json; print(json.load(open('notarization-result.json')).get('status','unknown'))" 2>/dev/null || echo "parse-error")
-          rm -f dist-bin/notarize.zip
-
-          if [ "$STATUS" != "Accepted" ]; then
-            echo "Notarization failed with status: $STATUS"
-            echo "Binary is signed but not notarized — users can still run via right-click > Open"
-            exit 0
-          fi
-          echo "Binary notarized!"
 
           # Build .pkg installer and staple the notarization ticket to it
           PKG_ROOT=$(mktemp -d)
